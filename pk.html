@@ -1,250 +1,304 @@
-import React, { useState, useEffect } from 'react';
-
-const TOTAL_ROUNDS = 5;
-
-// ゴールの狙える6つのエリア
-const TARGETS = [
-  'top-left', 'top-center', 'top-right',
-  'bottom-left', 'bottom-center', 'bottom-right'
-];
-
-export default function App() {
-  const [gameState, setGameState] = useState('menu'); // menu, playing, end
-  const [round, setRound] = useState(1);
-  const [score, setScore] = useState(0);
-  const [history, setHistory] = useState(Array(TOTAL_ROUNDS).fill(null));
-  const [ballPos, setBallPos] = useState('start');
-  const [keeperPos, setKeeperPos] = useState('start');
-  const [isKicking, setIsKicking] = useState(false);
-  const [message, setMessage] = useState('');
-
-  // ゲームの初期化
-  const startGame = () => {
-    setGameState('playing');
-    setRound(1);
-    setScore(0);
-    setHistory(Array(TOTAL_ROUNDS).fill(null));
-    setBallPos('start');
-    setKeeperPos('start');
-    setIsKicking(false);
-    setMessage('');
-  };
-
-  // シュート処理
-  const handleShoot = (target) => {
-    if (isKicking || gameState !== 'playing') return;
-    setIsKicking(true);
-    setMessage('');
-
-    // コンピュータ(キーパー)のランダムな飛び込み方向を決定
-    const keeperChoice = TARGETS[Math.floor(Math.random() * TARGETS.length)];
-    
-    // ボールとキーパーを移動（アニメーション開始）
-    setBallPos(target);
-    setKeeperPos(keeperChoice);
-
-    // アニメーション完了後(600ms)に結果判定
-    setTimeout(() => {
-      // プレイヤーの狙いとキーパーの飛んだ方向が違えばゴール
-      const isGoal = target !== keeperChoice;
-      
-      if (isGoal) {
-        setMessage('⚽ ゴール!!');
-        setScore(s => s + 1);
-        setHistory(h => {
-          const newH = [...h];
-          newH[round - 1] = 'O';
-          return newH;
-        });
-      } else {
-        setMessage('🧤 セーブ!!');
-        setHistory(h => {
-          const newH = [...h];
-          newH[round - 1] = 'X';
-          return newH;
-        });
-      }
-
-      // 1.5秒後に次のラウンドへ
-      setTimeout(() => {
-        if (round >= TOTAL_ROUNDS) {
-          setGameState('end');
-        } else {
-          setRound(r => r + 1);
-          setBallPos('start');
-          setKeeperPos('start');
-          setMessage('');
-          setIsKicking(false);
-        }
-      }, 1500);
-
-    }, 600);
-  };
-
-  // ボールの位置とアニメーションスタイルを計算
-  const getBallStyle = (pos) => {
-    const baseStyle = {
-      position: 'absolute',
-      transition: 'all 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94)', // 少し減速しながら飛ぶ
-    };
-    
-    let left, top, scale, rotate;
-    // 遠近感を出すために、飛んだ後はscale(0.8)で小さくする
-    switch(pos) {
-      case 'start': left = '50%'; top = '85%'; scale = 1.5; rotate = '0deg'; break;
-      case 'top-left': left = '15%'; top = '25%'; scale = 0.8; rotate = '720deg'; break;
-      case 'top-center': left = '50%'; top = '25%'; scale = 0.8; rotate = '720deg'; break;
-      case 'top-right': left = '85%'; top = '25%'; scale = 0.8; rotate = '720deg'; break;
-      case 'bottom-left': left = '15%'; top = '65%'; scale = 0.8; rotate = '720deg'; break;
-      case 'bottom-center': left = '50%'; top = '65%'; scale = 0.8; rotate = '720deg'; break;
-      case 'bottom-right': left = '85%'; top = '65%'; scale = 0.8; rotate = '720deg'; break;
-      default: left = '50%'; top = '85%'; scale = 1.5; rotate = '0deg';
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Penalty Shootout</title>
+  <!-- Tailwind CSSをCDNから読み込み -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* アニメーション用のカスタムスタイル */
+    .anim-ball {
+      transition: all 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     }
-    
-    return {
-      ...baseStyle,
-      left, top,
-      transform: `translate(-50%, -50%) scale(${scale}) rotate(${rotate}deg)` // span内の回転を利用するためここはdegなしで渡す処理に調整
-    };
-  };
-
-  // キーパーの位置とアニメーションスタイルを計算
-  const getKeeperStyle = (pos) => {
-    const baseStyle = {
-      position: 'absolute',
-      transition: 'all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-      fontSize: '5rem',
-      lineHeight: '1',
-    };
-    
-    let left, top, rotate;
-    // 飛びつく方向に合わせて回転させる
-    switch(pos) {
-      case 'start': left = '50%'; top = '55%'; rotate = '0deg'; break;
-      case 'top-left': left = '25%'; top = '30%'; rotate = '-45deg'; break;
-      case 'top-center': left = '50%'; top = '25%'; rotate = '0deg'; break;
-      case 'top-right': left = '75%'; top = '30%'; rotate = '45deg'; break;
-      case 'bottom-left': left = '20%'; top = '65%'; rotate = '-70deg'; break;
-      case 'bottom-center': left = '50%'; top = '65%'; rotate = '0deg'; break;
-      case 'bottom-right': left = '80%'; top = '65%'; rotate = '70deg'; break;
-      default: left = '50%'; top = '55%'; rotate = '0deg';
+    .anim-ball-spin {
+      transition: transform 0.6s ease-out;
     }
+    .anim-keeper {
+      transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4 font-sans select-none">
+
+  <!-- メインゲーム画面 -->
+  <div class="w-full max-w-3xl aspect-[4/3] md:aspect-video bg-green-600 relative overflow-hidden rounded-xl shadow-2xl border-4 border-gray-300">
     
-    return {
-      ...baseStyle,
-      left, top,
-      transform: `translate(-50%, -50%) rotate(${rotate})`
-    };
-  };
+    <!-- 芝生のシマシマ模様 -->
+    <div class="absolute inset-0 opacity-20" style="background-image: repeating-linear-gradient(0deg, transparent, transparent 40px, #000 40px, #000 80px)"></div>
+    
+    <!-- ピッチの白線 -->
+    <div class="absolute bottom-[15%] w-full h-1 bg-white/70"></div>
+    <div class="absolute bottom-[15%] left-1/2 -translate-x-1/2 w-[60%] h-full border-t-2 border-l-2 border-r-2 border-white/70"></div>
+    <!-- ペナルティマーク -->
+    <div class="absolute bottom-[10%] left-1/2 -translate-x-1/2 w-4 h-4 bg-white rounded-full shadow-sm"></div>
 
-  return (
-    <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4 font-sans select-none">
+    <!-- ゴールフレームとネットの描画 (SVG) -->
+    <svg class="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
+      <rect x="5%" y="10%" width="90%" height="75%" fill="none" stroke="white" stroke-width="8" />
+      <pattern id="net" width="30" height="30" patternUnits="userSpaceOnUse">
+        <path d="M 30 0 L 0 30 M 0 0 L 30 30" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="2"/>
+      </pattern>
+      <rect x="5%" y="10%" width="90%" height="75%" fill="url(#net)" />
+    </svg>
+
+    <!-- ヘッダー UI -->
+    <div class="absolute top-4 left-0 w-full flex justify-between items-center px-4 md:px-8 text-white font-bold text-lg md:text-xl drop-shadow-md z-10">
+      <div id="round-display" class="bg-black/30 px-3 py-1 rounded-lg">Round 1 / 5</div>
       
-      {/* メインゲーム画面 */}
-      <div className="w-full max-w-3xl aspect-[4/3] md:aspect-video bg-green-600 relative overflow-hidden rounded-xl shadow-2xl border-4 border-gray-300">
-        
-        {/* 芝生のシマシマ模様 */}
-        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 40px, #000 40px, #000 80px)' }}></div>
-        
-        {/* ピッチの白線 */}
-        <div className="absolute bottom-[15%] w-full h-1 bg-white/70"></div>
-        <div className="absolute bottom-[15%] left-1/2 -translate-x-1/2 w-[60%] h-full border-t-2 border-l-2 border-r-2 border-white/70"></div>
-        {/* ペナルティマーク */}
-        <div className="absolute bottom-[10%] left-1/2 -translate-x-1/2 w-4 h-4 bg-white rounded-full shadow-sm"></div>
-
-        {/* ゴールフレームとネットの描画 (SVG) */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
-          {/* ゴールの外枠 */}
-          <rect x="5%" y="10%" width="90%" height="75%" fill="none" stroke="white" strokeWidth="8" />
-          {/* ネットの網目パターン */}
-          <pattern id="net" width="30" height="30" patternUnits="userSpaceOnUse">
-            <path d="M 30 0 L 0 30 M 0 0 L 30 30" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="2"/>
-          </pattern>
-          <rect x="5%" y="10%" width="90%" height="75%" fill="url(#net)" />
-        </svg>
-
-        {/* ヘッダー UI */}
-        <div className="absolute top-4 left-0 w-full flex justify-between items-center px-4 md:px-8 text-white font-bold text-lg md:text-xl drop-shadow-md z-10">
-          <div className="bg-black/30 px-3 py-1 rounded-lg">Round {round} / {TOTAL_ROUNDS}</div>
-          
-          {/* 結果履歴 (〇✖) */}
-          <div className="flex gap-2 bg-black/30 p-2 rounded-lg">
-            {history.map((result, i) => (
-              <div key={i} className={`w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center text-xs md:text-sm border-2 border-white/50 transition-colors ${result === 'O' ? 'bg-green-500' : result === 'X' ? 'bg-red-500' : 'bg-gray-700'}`}>
-                {result}
-              </div>
-            ))}
-          </div>
-          
-          <div className="bg-black/30 px-3 py-1 rounded-lg">Score: {score}</div>
-        </div>
-
-        {/* 判定メッセージ (GOAL or SAVED) */}
-        {message && (
-          <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-            <h1 className="text-6xl md:text-8xl font-black text-yellow-300 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] animate-bounce italic">
-              {message}
-            </h1>
-          </div>
-        )}
-
-        {/* キーパー */}
-        <div style={getKeeperStyle(keeperPos)} className="z-10 drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)]">
-          🧍‍♂️
-        </div>
-
-        {/* ボール */}
-        <div style={{...getBallStyle(ballPos), transform: getBallStyle(ballPos).transform.replace(/rotate\([^)]+\)/, '')}} className="z-20 drop-shadow-[0_15px_15px_rgba(0,0,0,0.6)]">
-          {/* ボール自体を回転させるためのラッパー */}
-          <div style={{ transition: 'transform 0.6s ease-out', transform: `rotate(${getBallStyle(ballPos).transform.match(/rotate\(([^)]+)\)/)?.[1] || '0deg'})` }}>
-            <span className="text-4xl md:text-5xl block">⚽</span>
-          </div>
-        </div>
-
-        {/* クリック領域 (ゴールの6分割エリア) */}
-        {gameState === 'playing' && !isKicking && (
-          <div className="absolute top-[10%] left-[5%] w-[90%] h-[75%] grid grid-cols-3 grid-rows-2 gap-2 p-2 z-30">
-            {TARGETS.map(target => (
-              <button
-                key={target}
-                onClick={() => handleShoot(target)}
-                className="w-full h-full border border-dashed border-white/20 rounded-xl hover:border-white hover:bg-white/20 transition-all cursor-crosshair focus:outline-none focus:bg-white/20 active:scale-95"
-                aria-label={`Shoot to ${target}`}
-              ></button>
-            ))}
-          </div>
-        )}
-
-        {/* メニュー / ゲームオーバー 画面 */}
-        {(gameState === 'menu' || gameState === 'end') && (
-          <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center z-40 text-white backdrop-blur-sm">
-            <h1 className="text-5xl md:text-7xl font-black mb-2 text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-200 drop-shadow-lg text-center">
-              Penalty<br/>Shootout
-            </h1>
-            
-            {gameState === 'end' && (
-              <div className="text-center my-8 bg-white/10 p-6 rounded-2xl border border-white/20">
-                <p className="text-2xl mb-4 font-bold text-gray-300">試合終了</p>
-                <p className="text-xl">あなたのスコア</p>
-                <p className="text-5xl font-black mt-2"><span className="text-yellow-400">{score}</span> / {TOTAL_ROUNDS}</p>
-                {score === TOTAL_ROUNDS && <p className="text-green-400 mt-4 font-bold text-2xl animate-pulse">🎉 PERFECT! 🎉</p>}
-                {score === 0 && <p className="text-gray-400 mt-4 font-bold">次は決めよう...</p>}
-              </div>
-            )}
-            
-            <button 
-              onClick={startGame}
-              className={`px-10 py-4 mt-4 bg-green-500 hover:bg-green-400 text-white font-bold rounded-full text-2xl md:text-3xl transition-all hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(34,197,94,0.6)] ${gameState === 'menu' ? 'mt-12' : ''}`}
-            >
-              {gameState === 'menu' ? 'ゲームスタート' : 'もう一度遊ぶ'}
-            </button>
-          </div>
-        )}
+      <!-- 結果履歴 (〇✖) -->
+      <div id="history-container" class="flex gap-2 bg-black/30 p-2 rounded-lg">
+        <!-- JSで動的に生成 -->
       </div>
       
-      <p className="text-gray-400 mt-6 text-sm max-w-2xl text-center leading-relaxed px-4">
-        遊び方：ゴール枠内に表示される透明な6つのエリアのいずれかをクリック（タップ）してシュートを打ってください。キーパーの逆を突いて5本中何本決められるか挑戦しましょう！
-      </p>
+      <div id="score-display" class="bg-black/30 px-3 py-1 rounded-lg">Score: 0</div>
     </div>
-  );
-}
+
+    <!-- 判定メッセージ (GOAL or SAVED) -->
+    <div id="message-overlay" class="absolute inset-0 flex items-center justify-center z-20 pointer-events-none hidden">
+      <h1 id="message-text" class="text-6xl md:text-8xl font-black text-yellow-300 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] animate-bounce italic">
+        <!-- メッセージが入る -->
+      </h1>
+    </div>
+
+    <!-- キーパー -->
+    <div id="keeper" class="absolute text-[5rem] leading-none z-10 drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)] anim-keeper" style="left: 50%; top: 55%; transform: translate(-50%, -50%) rotate(0deg);">
+      🧍‍♂️
+    </div>
+
+    <!-- ボール -->
+    <div id="ball" class="absolute z-20 drop-shadow-[0_15px_15px_rgba(0,0,0,0.6)] anim-ball" style="left: 50%; top: 85%; transform: translate(-50%, -50%) scale(1.5);">
+      <div id="ball-wrapper" class="anim-ball-spin" style="transform: rotate(0deg);">
+        <span class="text-4xl md:text-5xl block">⚽</span>
+      </div>
+    </div>
+
+    <!-- クリック領域 (ゴールの6分割エリア) -->
+    <div id="target-areas" class="absolute top-[10%] left-[5%] w-[90%] h-[75%] grid grid-cols-3 grid-rows-2 gap-2 p-2 z-30 hidden">
+      <button onclick="handleShoot('top-left')" class="w-full h-full border border-dashed border-white/20 rounded-xl hover:border-white hover:bg-white/20 transition-all cursor-crosshair focus:outline-none focus:bg-white/20 active:scale-95" aria-label="Shoot to top-left"></button>
+      <button onclick="handleShoot('top-center')" class="w-full h-full border border-dashed border-white/20 rounded-xl hover:border-white hover:bg-white/20 transition-all cursor-crosshair focus:outline-none focus:bg-white/20 active:scale-95" aria-label="Shoot to top-center"></button>
+      <button onclick="handleShoot('top-right')" class="w-full h-full border border-dashed border-white/20 rounded-xl hover:border-white hover:bg-white/20 transition-all cursor-crosshair focus:outline-none focus:bg-white/20 active:scale-95" aria-label="Shoot to top-right"></button>
+      <button onclick="handleShoot('bottom-left')" class="w-full h-full border border-dashed border-white/20 rounded-xl hover:border-white hover:bg-white/20 transition-all cursor-crosshair focus:outline-none focus:bg-white/20 active:scale-95" aria-label="Shoot to bottom-left"></button>
+      <button onclick="handleShoot('bottom-center')" class="w-full h-full border border-dashed border-white/20 rounded-xl hover:border-white hover:bg-white/20 transition-all cursor-crosshair focus:outline-none focus:bg-white/20 active:scale-95" aria-label="Shoot to bottom-center"></button>
+      <button onclick="handleShoot('bottom-right')" class="w-full h-full border border-dashed border-white/20 rounded-xl hover:border-white hover:bg-white/20 transition-all cursor-crosshair focus:outline-none focus:bg-white/20 active:scale-95" aria-label="Shoot to bottom-right"></button>
+    </div>
+
+    <!-- メニュー / ゲームオーバー 画面 -->
+    <div id="menu-screen" class="absolute inset-0 bg-black/85 flex flex-col items-center justify-center z-40 text-white backdrop-blur-sm">
+      <h1 class="text-5xl md:text-7xl font-black mb-2 text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-200 drop-shadow-lg text-center">
+        Penalty<br/>Shootout
+      </h1>
+      
+      <div id="result-info" class="text-center my-8 bg-white/10 p-6 rounded-2xl border border-white/20 hidden">
+        <p class="text-2xl mb-4 font-bold text-gray-300">試合終了</p>
+        <p class="text-xl">あなたのスコア</p>
+        <p class="text-5xl font-black mt-2"><span id="final-score" class="text-yellow-400">0</span> / 5</p>
+        <p id="perfect-message" class="text-green-400 mt-4 font-bold text-2xl animate-pulse hidden">🎉 PERFECT! 🎉</p>
+        <p id="miss-message" class="text-gray-400 mt-4 font-bold hidden">次は決めよう...</p>
+      </div>
+      
+      <button id="start-btn" onclick="startGame()" class="px-10 py-4 bg-green-500 hover:bg-green-400 text-white font-bold rounded-full text-2xl md:text-3xl transition-all hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(34,197,94,0.6)] mt-12">
+        ゲームスタート
+      </button>
+    </div>
+  </div>
+  
+  <p class="text-gray-400 mt-6 text-sm max-w-2xl text-center leading-relaxed px-4">
+    遊び方：ゴール枠内に表示される透明な6つのエリアのいずれかをクリック（タップ）してシュートを打ってください。キーパーの逆を突いて5本中何本決められるか挑戦しましょう！
+  </p>
+
+  <script>
+    const TOTAL_ROUNDS = 5;
+    const TARGETS = [
+      'top-left', 'top-center', 'top-right',
+      'bottom-left', 'bottom-center', 'bottom-right'
+    ];
+
+    // ゲームの状態
+    let gameState = 'menu'; // 'menu', 'playing', 'end'
+    let round = 1;
+    let score = 0;
+    let history = Array(TOTAL_ROUNDS).fill(null);
+    let ballPos = 'start';
+    let keeperPos = 'start';
+    let isKicking = false;
+    let message = '';
+
+    // DOM要素の取得
+    const elMenuScreen = document.getElementById('menu-screen');
+    const elStartBtn = document.getElementById('start-btn');
+    const elResultInfo = document.getElementById('result-info');
+    const elFinalScore = document.getElementById('final-score');
+    const elPerfectMsg = document.getElementById('perfect-message');
+    const elMissMsg = document.getElementById('miss-message');
+
+    const elRoundDisplay = document.getElementById('round-display');
+    const elScoreDisplay = document.getElementById('score-display');
+    const elHistoryContainer = document.getElementById('history-container');
+
+    const elMessageOverlay = document.getElementById('message-overlay');
+    const elMessageText = document.getElementById('message-text');
+
+    const elKeeper = document.getElementById('keeper');
+    const elBall = document.getElementById('ball');
+    const elBallWrapper = document.getElementById('ball-wrapper');
+    const elTargetAreas = document.getElementById('target-areas');
+
+    // 初期化表示
+    updateUI();
+    applyPositions();
+
+    // ゲーム開始
+    function startGame() {
+      gameState = 'playing';
+      round = 1;
+      score = 0;
+      history = Array(TOTAL_ROUNDS).fill(null);
+      ballPos = 'start';
+      keeperPos = 'start';
+      isKicking = false;
+      message = '';
+      
+      updateUI();
+      applyPositions();
+    }
+
+    // シュート処理
+    function handleShoot(target) {
+      if (isKicking || gameState !== 'playing') return;
+      isKicking = true;
+      message = '';
+      updateUI();
+
+      // コンピュータ(キーパー)のランダムな飛び込み方向を決定
+      const keeperChoice = TARGETS[Math.floor(Math.random() * TARGETS.length)];
+      
+      // アニメーション開始
+      ballPos = target;
+      keeperPos = keeperChoice;
+      applyPositions();
+
+      // アニメーション完了後(600ms)に結果判定
+      setTimeout(() => {
+        const isGoal = target !== keeperChoice;
+        
+        if (isGoal) {
+          message = '⚽ ゴール!!';
+          score++;
+          history[round - 1] = 'O';
+        } else {
+          message = '🧤 セーブ!!';
+          history[round - 1] = 'X';
+        }
+        updateUI();
+
+        // 1.5秒後に次のラウンドまたは終了へ
+        setTimeout(() => {
+          if (round >= TOTAL_ROUNDS) {
+            gameState = 'end';
+          } else {
+            round++;
+            ballPos = 'start';
+            keeperPos = 'start';
+            message = '';
+            isKicking = false;
+          }
+          updateUI();
+          applyPositions();
+        }, 1500);
+
+      }, 600);
+    }
+
+    // UIの更新 (テキストや表示/非表示の切り替え)
+    function updateUI() {
+      // ヘッダー情報更新
+      elRoundDisplay.textContent = `Round ${round} / ${TOTAL_ROUNDS}`;
+      elScoreDisplay.textContent = `Score: ${score}`;
+      
+      // 履歴(〇✖)の描画
+      elHistoryContainer.innerHTML = '';
+      history.forEach(res => {
+        const div = document.createElement('div');
+        const bgColor = res === 'O' ? 'bg-green-500' : res === 'X' ? 'bg-red-500' : 'bg-gray-700';
+        div.className = `w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center text-xs md:text-sm border-2 border-white/50 transition-colors ${bgColor}`;
+        div.textContent = res || '';
+        elHistoryContainer.appendChild(div);
+      });
+
+      // メッセージの表示
+      if (message) {
+        elMessageOverlay.classList.remove('hidden');
+        elMessageText.textContent = message;
+      } else {
+        elMessageOverlay.classList.add('hidden');
+      }
+
+      // 画面の切り替え
+      if (gameState === 'menu' || gameState === 'end') {
+        elMenuScreen.classList.remove('hidden');
+        elMenuScreen.classList.add('flex');
+        elTargetAreas.classList.add('hidden');
+        
+        if (gameState === 'end') {
+          elResultInfo.classList.remove('hidden');
+          elFinalScore.textContent = score;
+          elPerfectMsg.classList.toggle('hidden', score !== TOTAL_ROUNDS);
+          elMissMsg.classList.toggle('hidden', score !== 0);
+          elStartBtn.textContent = 'もう一度遊ぶ';
+          elStartBtn.classList.remove('mt-12');
+        } else {
+          elResultInfo.classList.add('hidden');
+          elStartBtn.textContent = 'ゲームスタート';
+          elStartBtn.classList.add('mt-12');
+        }
+      } else {
+        elMenuScreen.classList.add('hidden');
+        elMenuScreen.classList.remove('flex');
+        
+        if (!isKicking) {
+          elTargetAreas.classList.remove('hidden');
+        } else {
+          elTargetAreas.classList.add('hidden');
+        }
+      }
+    }
+
+    // ボールとキーパーの位置（スタイル）を適用
+    function applyPositions() {
+      // --- キーパーのスタイル計算 ---
+      let kLeft, kTop, kRotate;
+      switch(keeperPos) {
+        case 'start': kLeft = '50%'; kTop = '55%'; kRotate = '0deg'; break;
+        case 'top-left': kLeft = '25%'; kTop = '30%'; kRotate = '-45deg'; break;
+        case 'top-center': kLeft = '50%'; kTop = '25%'; kRotate = '0deg'; break;
+        case 'top-right': kLeft = '75%'; kTop = '30%'; kRotate = '45deg'; break;
+        case 'bottom-left': kLeft = '20%'; kTop = '65%'; kRotate = '-70deg'; break;
+        case 'bottom-center': kLeft = '50%'; kTop = '65%'; kRotate = '0deg'; break;
+        case 'bottom-right': kLeft = '80%'; kTop = '65%'; kRotate = '70deg'; break;
+        default: kLeft = '50%'; kTop = '55%'; kRotate = '0deg';
+      }
+      elKeeper.style.left = kLeft;
+      elKeeper.style.top = kTop;
+      elKeeper.style.transform = `translate(-50%, -50%) rotate(${kRotate})`;
+
+      // --- ボールのスタイル計算 ---
+      let bLeft, bTop, bScale, bRotate;
+      switch(ballPos) {
+        case 'start': bLeft = '50%'; bTop = '85%'; bScale = 1.5; bRotate = '0deg'; break;
+        case 'top-left': bLeft = '15%'; bTop = '25%'; bScale = 0.8; bRotate = '720deg'; break;
+        case 'top-center': bLeft = '50%'; bTop = '25%'; bScale = 0.8; bRotate = '720deg'; break;
+        case 'top-right': bLeft = '85%'; bTop = '25%'; bScale = 0.8; bRotate = '720deg'; break;
+        case 'bottom-left': bLeft = '15%'; bTop = '65%'; bScale = 0.8; bRotate = '720deg'; break;
+        case 'bottom-center': bLeft = '50%'; bTop = '65%'; bScale = 0.8; bRotate = '720deg'; break;
+        case 'bottom-right': bLeft = '85%'; bTop = '65%'; bScale = 0.8; bRotate = '720deg'; break;
+        default: bLeft = '50%'; bTop = '85%'; bScale = 1.5; bRotate = '0deg';
+      }
+      elBall.style.left = bLeft;
+      elBall.style.top = bTop;
+      elBall.style.transform = `translate(-50%, -50%) scale(${bScale})`;
+      elBallWrapper.style.transform = `rotate(${bRotate})`;
+    }
+  </script>
+</body>
+</html>
