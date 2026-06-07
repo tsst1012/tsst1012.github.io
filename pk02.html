@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>PKゲーム - 課題提出用</title>
+    <style>
+        /* 大学生が書きそうな素朴なCSS */
+        body {
+            text-align: center;
+            font-family: sans-serif;
+            background-color: #e0f7fa; /* ちょっとダサい背景色 */
+        }
+        h1 {
+            color: #333;
+        }
+        #game-board {
+            width: 600px;
+            height: 400px;
+            background-color: #4CAF50; /* 単純な緑色 */
+            margin: 0 auto;
+            position: relative;
+            border: 3px solid #333;
+            overflow: hidden;
+        }
+        /* ゴール */
+        #goal {
+            width: 400px;
+            height: 150px;
+            border: 5px solid white;
+            border-bottom: none; /* 下の線は消す */
+            position: absolute;
+            top: 50px;
+            left: 95px; /* (600-400)/2 - 5 */
+        }
+        /* キーパーとボール */
+        #keeper {
+            font-size: 50px;
+            position: absolute;
+            top: 120px;
+            left: 275px;
+            transition: all 0.5s ease; /* transitionでとりあえず動かす */
+        }
+        #ball {
+            font-size: 40px;
+            position: absolute;
+            top: 300px;
+            left: 280px;
+            transition: all 0.5s ease; 
+        }
+        /* クリックする的 */
+        .target-btn {
+            position: absolute;
+            width: 100px;
+            height: 60px;
+            background-color: rgba(255, 255, 255, 0.3);
+            border: 2px dashed white;
+            cursor: pointer;
+        }
+        .target-btn:hover {
+            background-color: rgba(255, 255, 255, 0.6);
+        }
+        /* 的の配置（絶対座標でゴリ押し配置） */
+        #btn-top-left { top: 60px; left: 110px; }
+        #btn-top-center { top: 60px; left: 250px; }
+        #btn-top-right { top: 60px; left: 390px; }
+        #btn-bottom-left { top: 130px; left: 110px; }
+        #btn-bottom-center { top: 130px; left: 250px; }
+        #btn-bottom-right { top: 130px; left: 390px; }
+
+        /* メッセージ表示エリア */
+        #message {
+            font-size: 24px;
+            font-weight: bold;
+            color: red;
+            margin-top: 15px;
+            height: 30px;
+        }
+        #info {
+            font-size: 20px;
+            margin: 10px;
+        }
+        button.reset {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #ff9800;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>⚽ PKゲーム ⚽</h1>
+    
+    <div id="info">
+        ラウンド: <span id="round-text">1</span> / 5 | 
+        スコア: <span id="score-text">0</span>点
+    </div>
+
+    <div id="game-board">
+        <!-- ゴールの枠 -->
+        <div id="goal"></div>
+
+        <!-- 的（ボタン） -->
+        <div id="targets">
+            <!-- onclickに直接処理を書く -->
+            <div class="target-btn" id="btn-top-left" onclick="shoot('top-left')"></div>
+            <div class="target-btn" id="btn-top-center" onclick="shoot('top-center')"></div>
+            <div class="target-btn" id="btn-top-right" onclick="shoot('top-right')"></div>
+            <div class="target-btn" id="btn-bottom-left" onclick="shoot('bottom-left')"></div>
+            <div class="target-btn" id="btn-bottom-center" onclick="shoot('bottom-center')"></div>
+            <div class="target-btn" id="btn-bottom-right" onclick="shoot('bottom-right')"></div>
+        </div>
+
+        <!-- キーパーとボール -->
+        <div id="keeper">🧍‍♂️</div>
+        <div id="ball">⚽</div>
+    </div>
+
+    <div id="message">的をクリックしてシュート！</div>
+
+    <button class="reset" onclick="resetGame()">最初からやり直す</button>
+
+    <script>
+        // グローバル変数の準備
+        let currentRound = 1;
+        let score = 0;
+        let isShooting = false; // 連打防止用
+
+        const maxRound = 5;
+        const targetsArray = [
+            'top-left', 'top-center', 'top-right',
+            'bottom-left', 'bottom-center', 'bottom-right'
+        ];
+
+        // 座標のデータ（辞書型で管理）
+        const positions = {
+            'top-left': { ballX: '150px', ballY: '70px', keeperX: '150px', keeperY: '80px' },
+            'top-center': { ballX: '280px', ballY: '70px', keeperX: '275px', keeperY: '80px' },
+            'top-right': { ballX: '410px', ballY: '70px', keeperX: '400px', keeperY: '80px' },
+            'bottom-left': { ballX: '150px', ballY: '140px', keeperX: '180px', keeperY: '130px' },
+            'bottom-center': { ballX: '280px', ballY: '140px', keeperX: '275px', keeperY: '130px' },
+            'bottom-right': { ballX: '410px', ballY: '140px', keeperX: '370px', keeperY: '130px' },
+            'start': { ballX: '280px', ballY: '300px', keeperX: '275px', keeperY: '120px' }
+        };
+
+        // シュート関数
+        function shoot(playerTarget) {
+            if (isShooting) return; // すでに蹴っていたら何もしない
+            if (currentRound > maxRound) {
+                document.getElementById('message').innerText = "ゲーム終了です！リセットしてください。";
+                return;
+            }
+
+            isShooting = true;
+            document.getElementById('message').innerText = "";
+
+            // キーパーの動きをランダムに決める
+            let randomNum = Math.floor(Math.random() * 6);
+            let keeperTarget = targetsArray[randomNum];
+
+            // デバッグ用（消し忘れた設定）
+            // console.log("プレイヤー: " + playerTarget + ", キーパー: " + keeperTarget);
+
+            // アニメーションのためにCSSのtopとleftを変更
+            let ballStyle = document.getElementById('ball').style;
+            let keeperStyle = document.getElementById('keeper').style;
+
+            ballStyle.left = positions[playerTarget].ballX;
+            ballStyle.top = positions[playerTarget].ballY;
+
+            keeperStyle.left = positions[keeperTarget].keeperX;
+            keeperStyle.top = positions[keeperTarget].keeperY;
+
+            // 少し待ってから結果判定 (0.6秒)
+            setTimeout(function() {
+                if (playerTarget !== keeperTarget) {
+                    document.getElementById('message').innerText = "ゴーーーール！！";
+                    score++;
+                } else {
+                    document.getElementById('message').innerText = "止められた！！";
+                }
+
+                // スコア更新
+                document.getElementById('score-text').innerText = score;
+
+                // さらに少し待って次のラウンドへ準備
+                setTimeout(function() {
+                    if (currentRound >= maxRound) {
+                        document.getElementById('message').innerText = "終了！あなたのスコアは " + score + "点 でした！";
+                        currentRound++; // これ以上進めないようにする
+                    } else {
+                        currentRound++;
+                        document.getElementById('round-text').innerText = currentRound;
+                        document.getElementById('message').innerText = "次のシュート！的をクリック！";
+                        
+                        // 位置を元に戻す
+                        ballStyle.left = positions['start'].ballX;
+                        ballStyle.top = positions['start'].ballY;
+                        keeperStyle.left = positions['start'].keeperX;
+                        keeperStyle.top = positions['start'].keeperY;
+                    }
+                    isShooting = false;
+                }, 1500); // 1.5秒待つ
+
+            }, 600);
+        }
+
+        // ゲームをリセットする関数
+        function resetGame() {
+            currentRound = 1;
+            score = 0;
+            isShooting = false;
+
+            document.getElementById('round-text').innerText = currentRound;
+            document.getElementById('score-text').innerText = score;
+            document.getElementById('message').innerText = "的をクリックしてシュート！";
+
+            // 位置を初期位置に戻す
+            let ballStyle = document.getElementById('ball').style;
+            let keeperStyle = document.getElementById('keeper').style;
+            ballStyle.left = positions['start'].ballX;
+            ballStyle.top = positions['start'].ballY;
+            keeperStyle.left = positions['start'].keeperX;
+            keeperStyle.top = positions['start'].keeperY;
+        }
+    </script>
+</body>
+</html>
